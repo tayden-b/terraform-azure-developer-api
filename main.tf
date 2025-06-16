@@ -1,15 +1,21 @@
+# main.tf for the Developer Workspace
+
 terraform {
   required_providers {
     azurerm = {
       source  = "hashicorp/azurerm"
       version = "~> 3.0"
     }
+    tfe = {
+      source  = "hashicorp/tfe"
+      version = "~> 0.50"
+    }
   }
   cloud {
-    organization = "hashi-org-TF" # 
+    organization = "YOUR_HCP_TERRAFORM_ORG_NAME" # <-- Make sure to update this
 
     workspaces {
-      name = "platform-azure-api-management"
+      name = "developer-app-alpha-api"
     }
   }
 }
@@ -18,49 +24,62 @@ provider "azurerm" {
   features {}
 }
 
-
-resource "azurerm_resource_group" "platform_rg" {
-  name     = "platform-rg"
-  location = "East US" # You can choose a different region
+# Read the outputs from the platform workspace to get the APIM instance details
+data "tfe_outputs" "platform" {
+  organization = "hashi-org-TF" 
+  workspace    = "developer-app-alpha-api"
 }
 
-# (APIM) INSTANCE
-################################################################################
+# Define the developer's API within the existing APIM instance
+resource "azurerm_api_management_api" "developer_api" {
+  name                = "alpha-app-api"
+  resource_group_name = data.tfe_outputs.platform.values.resource_group_name
+  api_management_name = data.tfe_outputs.platform.values.api_management_name
+  revision            = "1"
+  display_name        = "Alpha Application API"
+  path                = "alpha"
+  protocols           = ["https"]
 
-resource "azurerm_api_management" "platform_apim" {
-  name                = "hcp-demo-platform-apim" # Must be globally unique
-  location            = azurerm_resource_group.platform_rg.location
-  resource_group_name = azurerm_resource_group.platform_rg.name
-  publisher_name      = "Platform Engineering"
-  publisher_email     = "tpbarret@outlook.com"
-
-  sku_name = "Consumption_0" # This is the free tier SKU
-
-  tags = {
-    "team"      = "platform"
-    "managedBy" = "terraform"
-  }
+  # This points to the actual backend service where requests will be forwarded
+  service_url = "http://httpbin.org"
 }
 
-################################################################################
-# OUTPUTS
-#
-# These values will be shared with the developer workspace. Using outputs
-# is the standard way to expose resource information for cross-workspace
-# communication.
-################################################################################
-
-output "api_management_id" {
-  description = "The resource ID of the API Management instance."
-  value       = azurerm_api_management.platform_apim.id
+# Define a specific operation (e.g., GET /ip) for our new API
+resource "azurerm_api_management_api_operation" "get_ip" {
+  api_name            = azurerm_api_management_api.developer_api.name
+  resource_group_name = data.tfe_outputs.platform.values.resource_group_name
+  api_management_name = data.tfe_outputs.platform.values.api_management_name
+  
+  operation_id        = "get-ip-address" # This ID is used to target the policy
+  display_name        = "Get Caller IP"
+  method              = "GET"
+  url_template        = "/ip"
 }
 
-output "api_management_name" {
-  description = "The name of the API Management instance."
-  value       = azurerm_api_management.platform_apim.name
-}
+# CORRECTED RESOURCE: Apply policy to the specific operation
+# This replaces your old "azurerm_api_management_api_policy" resource
+resource "azurerm_api_management_api_operation_policy" "rate_limit_policy" {
+  # These four attributes correctly target the single operation
+  operation_id        = azurerm_api_management_api_operation.get_ip.operation_id
+  api_name            = azurerm_api_management_api.developer_api.name
+  api_management_name = data.tfe_outputs.platform.values.api_management_name
+  resource_group_name = data.tfe_outputs.platform.values.resource_group_name
 
-output "resource_group_name" {
-  description = "The name of the resource group for the APIM instance."
-  value       = azurerm_resource_group.platform_rg.name
+  xml_content = <<XML
+<policies>
+    <inbound>
+        <base />
+        <rate-limit calls="5" renewal-period="60" />
+    </inbound>
+    <backend>
+        <base />
+    </backend>
+    <outbound>
+        <base />
+    </outbound>
+    <on-error>
+        <base />
+    </on-error>
+</policies>
+XML
 }
