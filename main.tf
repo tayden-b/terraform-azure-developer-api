@@ -12,7 +12,7 @@ terraform {
     }
   }
   cloud {
-    organization = "YOUR_HCP_TERRAFORM_ORG_NAME" # <-- Make sure to update this
+    organization = "hashi-org-TF" # <-- Make sure to update this
 
     workspaces {
       name = "developer-app-alpha-api"
