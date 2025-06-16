@@ -27,7 +27,8 @@ provider "azurerm" {
 # Read the outputs from the platform workspace to get the APIM instance details
 data "tfe_outputs" "platform" {
   organization = "hashi-org-TF" 
-  workspace    = "developer-app-alpha-api"
+  workspace    = "terraform-azure-developer-api"
+  project_name = "hcp-azure"
 }
 
 # Define the developer's API within the existing APIM instance
