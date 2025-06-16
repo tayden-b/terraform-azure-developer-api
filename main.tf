@@ -15,7 +15,7 @@ terraform {
     organization = "hashi-org-TF" # <-- Make sure to update this
 
     workspaces {
-      name = "developer-app-alpha-api"
+      name = "terraform-azure-developer-api"
     }
   }
 }
