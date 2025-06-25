@@ -69,7 +69,7 @@ resource "azurerm_api_management_api_operation_policy" "rate_limit_policy" {
 <policies>
     <inbound>
         <base />
-        <rate-limit calls="60" renewal-period="60" />
+        <rate-limit calls="100" renewal-period="60" />
     </inbound>
     <backend>
         <base />
